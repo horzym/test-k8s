@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "nginx-cardinality"
+  labels:
+    app.kubernetes.io/name: {{ include "service.name" . }}
+    helm.sh/chart: {{ include "service.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: "nginx-cardinality"
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: "nginx-cardinality"
+        service: {{ include "service.name" . }}
+        app_release: {{ .Release.Name }}
+      annotations:
+        checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+    spec:
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: {{ .Values.storagePvcName }}
+        - name: "basic-auth"
+          secret:
+            secretName: "basic-auth"
+        - name: "nginx-conf"
+          configMap:
+            name: "{{ .Release.Name }}-configmap"
+        - name: "nginx-ssl"
+          configMap:
+            name: "basic-ssl"
+      containers:
+        - name: nginx
+          image: {{ .Values.image.repository | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "Always" }}
+          args:
+          - /bin/bash
+          - 'mkdir /etc/nginx/basic_auth; mkdir /usr/share/nginx/static; mkdir /etc/nginx/ssl'
+          ports:
+          - containerPort: 443
+          volumeMounts:
+          - mountPath: /usr/share/nginx/static
+            name: storage
+          - mountPath: /etc/nginx/basic_auth
+            name: "basic-auth"
+          - mountPath: /etc/nginx/conf.d
+            name: "nginx-conf"
+          - mountPath: /etc/nginx/ssl
+            name: "nginx-ssl"
+{{- with .Values.resources.nginx }}
+          resources:
+{{ toYaml . | indent 12 }}
+{{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - {{ include "service.fullname" . }}
+              topologyKey: "kubernetes.io/hostname"
+{{- with .Values.nodeAffinity }}
+        nodeAffinity:
+{{ toYaml . | indent 10 }}
+{{- end }}      
+{{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+{{- end }}

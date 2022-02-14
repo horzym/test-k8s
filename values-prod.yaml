@@ -1,0 +1,27 @@
+image:
+  repository: "nginx@sha256:bb129a712c2431ecce4af8dde831e980373b26368233ef0f3b2bae9e9ec515ee"
+  pullPolicy: IfNotPresent
+storagePvcName: "storage"
+replicaCount: 3
+resources:
+  nginx:
+    limits:
+      cpu: 512m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+nodeAffinity:
+  preferredDuringSchedulingIgnoredDuringExecution:
+  - preference:
+      matchExpressions:
+      - key: app
+        operator: In
+        values:
+        - web-worker
+    weight: 100
+
+ingress:
+  domains: 
+  - domain: "prod.nginx-cardinality.com"

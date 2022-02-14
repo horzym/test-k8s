@@ -1,0 +1,42 @@
+{{- $serviceName := print .Release.Name }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "ingress-nginx-cardinality"
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: nginx
+spec:
+  tls:
+{{- range .Values.ingress.domains }}
+    - hosts:
+        - "{{ .domain | lower }}"
+      secretName: "crt-{{ .domain | lower }}"
+{{- end }}
+  rules:
+{{- range .Values.ingress.domains }}
+    - host: "{{ .domain | lower }}"
+      http:
+        paths:
+        {{- if .paths }}
+        {{- range .paths }}
+          - path: "{{ .path | lower | default "/"}}"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .serviceName | default $serviceName |quote }}
+                port:
+                  number: 80
+        {{- end }}
+        {{- else }}
+          - path: "/"
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $serviceName | quote }}
+                port:
+                  number: 80
+        {{- end }}
+{{- end }}
